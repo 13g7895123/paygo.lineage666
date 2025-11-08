@@ -1,5 +1,8 @@
 <?php
 include("myadm/include.php");
+require_once('src/payment_class.php');
+require_once('src/funpoint_logger.php');
+
 $endstr = '1|OK';
 $MerchantID = $_REQUEST["MerchantID"];
 $MerchantTradeNo = $_REQUEST["MerchantTradeNo"];
@@ -23,10 +26,104 @@ try {
     if ($datalist["stats"] != 0 && $_POST["mockpay"] != 1) {
         die("0");
     }
+
+    // 記錄回調接收
+    log_funpoint_transaction($MerchantTradeNo, 'callback_received', [
+        'merchant_id' => $MerchantID,
+        'rtn_code' => $RtnCode,
+        'rtn_msg' => $RtnMsg,
+        'trade_amt' => $TradeAmt
+    ]);
+
+    // CheckMacValue 驗證機制
+    // 取得伺服器設定以獲得 HashKey 和 HashIV
+    $qquery = $pdo->prepare("SELECT * FROM servers where auton=?");
+    $qquery->execute(array($foran));
+    if (!$server_info = $qquery->fetch()) {
+        log_funpoint_error('SERVER_NOT_FOUND', 'CheckMacValue 驗證失敗：找不到伺服器設定', [
+            'order_id' => $MerchantTradeNo,
+            'foran' => $foran
+        ]);
+        die("0");
+    }
+
+    // 根據支付類型取得對應的 HashKey 和 HashIV
+    $paytype = $datalist["paytype"];
+    $HashKey = '';
+    $HashIV = '';
+
+    if ($paytype == 5) {
+        // 信用卡
+        $env = $server_info["gstats"];
+        if ($env == 1) {
+            $HashKey = $server_info["HashKey"];
+            $HashIV = $server_info["HashIV"];
+        } else {
+            $HashKey = "265flDjIvesceXWM";
+            $HashIV = "pOOvhGd1V2pJbjfX";
+        }
+    } else if ($paytype == 2) {
+        // ATM 轉帳
+        $env = $server_info["gstats_bank"] ?? $server_info["gstats2"];
+        if ($env == 1) {
+            $HashKey = $server_info["HashKey2"] ?? $server_info["HashKey"];
+            $HashIV = $server_info["HashIV2"] ?? $server_info["HashIV"];
+        } else {
+            $HashKey = "265flDjIvesceXWM";
+            $HashIV = "pOOvhGd1V2pJbjfX";
+        }
+    } else {
+        // 其他支付方式
+        $env = $server_info["gstats2"];
+        if ($env == 1) {
+            $HashKey = $server_info["HashKey2"];
+            $HashIV = $server_info["HashIV2"];
+        } else {
+            $HashKey = "265flDjIvesceXWM";
+            $HashIV = "pOOvhGd1V2pJbjfX";
+        }
+    }
+
+    // 重新組合參數進行驗證（移除 CheckMacValue）
+    $checkParams = $_REQUEST;
+    unset($checkParams['CheckMacValue']);
+
+    // 計算 CheckMacValue
+    $calculatedCheckMacValue = funpoint::generate($checkParams, $HashKey, $HashIV);
+
+    // 驗證 CheckMacValue
+    if ($rCheckMacValue !== $calculatedCheckMacValue) {
+        // 驗證失敗，記錄錯誤
+        log_funpoint_error('CHECKMAC_VERIFY_FAILED', 'CheckMacValue 驗證失敗', [
+            'order_id' => $MerchantTradeNo,
+            'received' => $rCheckMacValue,
+            'calculated' => $calculatedCheckMacValue,
+            'paytype' => $paytype
+        ]);
+
+        // 更新訂單錯誤訊息
+        $qud = $pdo->prepare("update servers_log set errmsg='CheckMacValue 驗證失敗' where orderid=?");
+        $qud->execute(array($MerchantTradeNo));
+
+        $pdo->commit();
+        die("0");
+    }
+
+    // CheckMacValue 驗證成功
+    log_funpoint_info('CheckMacValue 驗證成功', ['order_id' => $MerchantTradeNo]);
     if ($RtnCode == 1) {
         $rstat = ($RtnMsg == '模擬付款成功') ? 3 : 1;
+        log_funpoint_transaction($MerchantTradeNo, 'payment_success', [
+            'is_test' => ($RtnMsg == '模擬付款成功'),
+            'amount' => $TradeAmt,
+            'charge_fee' => $PaymentTypeChargeFee
+        ]);
     } else {
         $rstat = 2;
+        log_funpoint_transaction($MerchantTradeNo, 'payment_fail', [
+            'rtn_code' => $RtnCode,
+            'rtn_msg' => $RtnMsg
+        ]);
     }
     $qud    = $pdo->prepare("update servers_log set stats=?, hmoney=?, paytimes=?, rmoney=?, rCheckMacValue=?,RtnCode=?,RtnMsg=? where orderid=?");
     $rr = $qud->execute(array($rstat, $PaymentTypeChargeFee, $PaymentDate, $TradeAmt, $rCheckMacValue, $RtnCode, $RtnMsg, $MerchantTradeNo));
@@ -41,13 +138,8 @@ try {
         $gameid = $ddlog["gameid"];
         $paytype = $ddlog["paytype"];
   
-        $qquery = $pdo->prepare("SELECT * FROM servers where auton=?");
-        $qquery->execute(array($foran));
-        if (!$dd = $qquery->fetch()) {
-            $qud = $pdo->prepare("update servers_log set errmsg='找尋伺服器資料庫時發生錯誤' where orderid=?");
-            $qud->execute(array($MerchantTradeNo));
-            die("0");
-        }
+        // 使用已查詢的 $server_info，避免重複查詢
+        $dd = $server_info;
         $ip = $dd["db_ip"];
         $port = $dd["db_port"];
         $dbname = $dd["db_name"];
@@ -56,8 +148,8 @@ try {
         $pid = $dd["db_pid"];
 
         $bonusid = $dd["db_bonusid"];
-        $bonusrate = $dd["db_bonusrate"];       
-        
+        $bonusrate = $dd["db_bonusrate"];
+
         // 取得資料表名稱
         $paytable = $dd["paytable"];
         $paytable = ($paytable == 'custom') ? $dd["paytable_custom"] : $paytable;

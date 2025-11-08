@@ -2,18 +2,32 @@
 
 include("myadm/include.php");
 include_once('./web_class.php');
+require_once('src/funpoint_logger.php');
 
 //print_r($_REQUEST);
 
 $MerchantTradeNo = $_POST["MerchantTradeNo"];
 
-if(!$MerchantTradeNo) alert("資料錯誤-8000301。", 0);
+if(!$MerchantTradeNo) {
+    log_funpoint_error('8000301', '資料錯誤：MerchantTradeNo 為空', ['post_data' => $_POST]);
+    alert("資料錯誤-8000301。", 0);
+}
+
+// 記錄前端返回
+log_funpoint_transaction($MerchantTradeNo, 'client_redirect', [
+    'payment_no' => $_POST["PaymentNo"] ?? null,
+    'bank_code' => $_POST["BankCode"] ?? null,
+    'expire_date' => $_POST["ExpireDate"] ?? null
+]);
 
 	//read
-	$pdo = openpdo(); 	
+	$pdo = openpdo();
     $sq    = $pdo->prepare("SELECT * FROM servers_log where orderid=?");
     $sq->execute(array($MerchantTradeNo));
-    if(!$sqd = $sq->fetch()) alert("不明錯誤-8000302。", 0);
+    if(!$sqd = $sq->fetch()) {
+        log_funpoint_error('8000302', '不明錯誤：找不到訂單', ['order_id' => $MerchantTradeNo]);
+        alert("不明錯誤-8000302。", 0);
+    }
     $user_IP = get_real_ip();
     $custombg = "assets/images/particles_bg.jpg";
     $pagebgpdo= $pdo->prepare("SELECT custombg FROM servers where auton=?");
