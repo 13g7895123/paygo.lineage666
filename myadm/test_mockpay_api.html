@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MockPay API 測試工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005a8b;
+        }
+        button.success {
+            background: #28a745;
+        }
+        button.danger {
+            background: #dc3545;
+        }
+        input[type="text"], input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+            width: 200px;
+        }
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+            width: 220px;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            border-color: #28a745;
+            background-color: #d4edda;
+        }
+        .error {
+            border-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 MockPay API 測試工具</h1>
+    
+    <div class="container">
+        <h2>📋 API 狀態檢查</h2>
+        <button onclick="checkAPIStatus()">檢查 API 狀態</button>
+        <button onclick="loadOrderList()">載入訂單列表</button>
+        <button onclick="viewDebugLog()">查看除錯日誌</button>
+        <div id="statusResult" class="result" style="display:none;"></div>
+    </div>
+    
+    <div class="container">
+        <h2>🎮 模擬付款測試</h2>
+        <div>
+            <label>訂單編號 (auton):</label>
+            <input type="number" id="testAuton" placeholder="輸入訂單編號" value="1" />
+            
+            <label>金流類型:</label>
+            <select id="testPayCP">
+                <option value="ecpay">綠界 (ecpay)</option>
+                <option value="ebpay">藍新 (ebpay)</option>
+                <option value="pchome">支付連 (pchome)</option>
+                <option value="gomypay">萬事達 (gomypay)</option>
+                <option value="smilepay">速買配 (smilepay)</option>
+                <option value="funpoint">Fun點 (funpoint)</option>
+                <option value="szfu">數支付 (szfu)</option>
+            </select>
+            
+            <br><br>
+            <button onclick="testMockPay()" class="success">執行模擬付款</button>
+            <button onclick="simulateMockPay()" style="background: #ffc107;">模擬測試 (不實際執行)</button>
+        </div>
+        <div id="mockpayResult" class="result" style="display:none;"></div>
+    </div>
+    
+    <div class="container">
+        <h2>📊 可用訂單列表</h2>
+        <div id="orderList"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'api/';
+        
+        function showResult(elementId, data, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = 'result ' + (isSuccess ? 'success' : 'error');
+            
+            if (typeof data === 'string') {
+                element.textContent = data;
+            } else {
+                element.textContent = JSON.stringify(data, null, 2);
+            }
+        }
+        
+        async function apiCall(url, method = 'GET', body = null) {
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
+                
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+                
+                const response = await fetch(url, options);
+                const data = await response.json();
+                
+                return {
+                    success: response.ok,
+                    status: response.status,
+                    data: data
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    status: 0,
+                    data: { error: '請求失敗: ' + error.message }
+                };
+            }
+        }
+        
+        async function checkAPIStatus() {
+            console.log('檢查 MockPay API 狀態...');
+            
+            const result = await apiCall(API_BASE + 'mockpay.php', 'POST', {
+                an: 'test',
+                type: 1
+            });
+            
+            let statusInfo = `API 狀態檢查結果:
+HTTP 狀態: ${result.status}
+回應成功: ${result.success}
+
+回應內容:
+${JSON.stringify(result.data, null, 2)}`;
+            
+            showResult('statusResult', statusInfo, result.data.status !== 'error' || result.data.error_step === '參數驗證');
+        }
+        
+        async function loadOrderList() {
+            console.log('載入訂單列表...');
+            
+            const result = await apiCall(API_BASE + 'debug.php?action=test_db');
+            
+            if (result.success) {
+                // 這裡可以擴展來獲取更多訂單資訊
+                showResult('statusResult', '資料庫連線正常，可以進行測試', true);
+                
+                // 建立示例訂單表格
+                const orderListHTML = `
+                    <h3>測試用訂單範例：</h3>
+                    <table>
+                        <tr>
+                            <th>測試編號</th>
+                            <th>金流類型</th>
+                            <th>說明</th>
+                            <th>操作</th>
+                        </tr>
+                        <tr>
+                            <td>1</td>
+                            <td>ecpay</td>
+                            <td>綠界金流測試</td>
+                            <td><button onclick="quickTest(1, 'ecpay')">快速測試</button></td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td>ebpay</td>
+                            <td>藍新金流測試</td>
+                            <td><button onclick="quickTest(2, 'ebpay')">快速測試</button></td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td>pchome</td>
+                            <td>支付連測試</td>
+                            <td><button onclick="quickTest(3, 'pchome')">快速測試</button></td>
+                        </tr>
+                    </table>
+                `;
+                
+                document.getElementById('orderList').innerHTML = orderListHTML;
+            } else {
+                showResult('statusResult', result.data, false);
+            }
+        }
+        
+        async function testMockPay() {
+            const auton = document.getElementById('testAuton').value;
+            const payCP = document.getElementById('testPayCP').value;
+            
+            if (!auton) {
+                alert('請輸入訂單編號');
+                return;
+            }
+            
+            console.log('執行模擬付款測試:', auton, payCP);
+            showResult('mockpayResult', '處理中...', true);
+            
+            const result = await apiCall(API_BASE + 'mockpay.php', 'POST', {
+                an: auton,
+                type: 1
+            });
+            
+            let resultText = `模擬付款測試結果:
+訂單編號: ${auton}
+金流類型: ${payCP}
+HTTP 狀態: ${result.status}
+
+回應內容:
+${JSON.stringify(result.data, null, 2)}`;
+            
+            showResult('mockpayResult', resultText, result.data.status === 'success');
+        }
+        
+        async function simulateMockPay() {
+            const auton = document.getElementById('testAuton').value;
+            const payCP = document.getElementById('testPayCP').value;
+            
+            showResult('mockpayResult', `模擬測試 (不實際執行):
+訂單編號: ${auton}
+金流類型: ${payCP}
+狀態: 模擬成功
+說明: 這是模擬測試，不會實際執行付款流程`, true);
+        }
+        
+        async function quickTest(auton, payCP) {
+            document.getElementById('testAuton').value = auton;
+            document.getElementById('testPayCP').value = payCP;
+            await testMockPay();
+        }
+        
+        async function viewDebugLog() {
+            const result = await apiCall(API_BASE + 'debug.php?action=logs&lines=20');
+            
+            if (result.success && result.data.data && result.data.data.logs) {
+                const logText = result.data.data.logs
+                    .filter(log => log.includes('MockPay'))
+                    .join('\n');
+                
+                showResult('statusResult', `最新 MockPay 相關日誌:\n\n${logText || '沒有找到相關日誌'}`, true);
+            } else {
+                showResult('statusResult', '無法獲取日誌資料', false);
+            }
+        }
+        
+        // 頁面載入完成後自動檢查狀態
+        window.addEventListener('load', function() {
+            checkAPIStatus();
+        });
+    </script>
+</body>
+</html>
