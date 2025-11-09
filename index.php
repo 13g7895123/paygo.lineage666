@@ -54,11 +54,14 @@ if($_REQUEST["st"] == "send") {
 	$pay_cp2 = $datalist["pay_cp2"];
 	
 	// check game id
-	
-	$gamepdo = opengamepdo($datalist["db_ip"], $datalist["db_port"], $datalist["db_name"], $datalist["db_user"], $datalist["db_pass"]);
-	$gameq   = $gamepdo->prepare("select * from accounts where LOWER(login)=?");
-	$gameq->execute(array(strtolower($gid)));
-	if(!$gameq->fetch()) alert("遊戲內無此帳號，請確認您的遊戲帳號。", 0);
+	$test_mode = false; // 測試模式：true=跳過帳號驗證, false=正常驗證
+
+	if(!$test_mode) {
+		$gamepdo = opengamepdo($datalist["db_ip"], $datalist["db_port"], $datalist["db_name"], $datalist["db_user"], $datalist["db_pass"]);
+		$gameq   = $gamepdo->prepare("select * from accounts where LOWER(login)=?");
+		$gameq->execute(array(strtolower($gid)));
+		if(!$gameq->fetch()) alert("遊戲內無此帳號，請確認您的遊戲帳號。", 0);
+	}
 	
 	// get ip
 	  $user_IP = get_real_ip();    
@@ -116,6 +119,9 @@ if($_REQUEST["st"] == "send") {
 			case "smilepay":
 			header('Location: smilepay_next.php');
 			break;	
+			case "funpoint":
+			header('Location: funpoint_next.php');
+			break;
 			case "custom_bank":
 			header('Location: custom_next.php');
 			break;

@@ -518,6 +518,7 @@ echo '<div class="col-md-5 col-xs-12 margin-bottom-10">自訂開單頁面底圖 
 	<input type="radio" name="pay_cp2" value="ebpay"<?if($datalist['pay_cp2'] == 'ebpay') echo " checked"?>> 藍新&nbsp;&nbsp;
 	<input type="radio" name="pay_cp2" value="gomypay"<?if($datalist['pay_cp2'] == 'gomypay') echo " checked"?>> 萬事達&nbsp;&nbsp;
 	<input type="radio" name="pay_cp2" value="smilepay"<?if($datalist['pay_cp2'] == 'smilepay') echo " checked"?>> 速買配&nbsp;&nbsp;
+	<input type="radio" name="pay_cp2" value="funpoint"<?if($datalist['pay_cp2'] == 'funpoint') echo " checked"?>> 歐買尬&nbsp;&nbsp;
 	<input type="radio" name="pay_cp2" value="opay"<?if($datalist['pay_cp2'] == 'opay') echo " checked"?>> 歐付寶&nbsp;&nbsp;
 </td></tr>
 <tr><td class="normaldiv2">
