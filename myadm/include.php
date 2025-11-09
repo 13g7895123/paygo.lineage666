@@ -448,6 +448,9 @@ function top_html()
             case "smilepay":
                 return "速買配";
                 break;
+            case "funpoint":
+                return "歐買尬";
+                break;
             case "custom_bank":
                 return "銀行轉帳";
                 break;

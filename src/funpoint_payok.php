@@ -101,7 +101,6 @@ if(!$MerchantTradeNo) alert("資料錯誤-8000301。", 0);
 	  	}
 		  echo "<div style='font-size:26px;color:white;'>繳費金額：".$sqd["money"]."</div>";
           echo web::payment_inf_render(0, $BankCode, $vAccount, $ExpireDate);
-	  	//   echo "<div style='font-size:26px;color:white;'>銀行代碼：".$BankCode."&nbsp;&nbsp;繳費帳號：".$vAccount."<img src='./assets/images/copy.png' width='30' height='30' style='background-color: white; padding:5px;  border-radius: 50%; cursor: pointer; margin-left: 5px'><br>請在繳費期限 ".$ExpireDate." 前繳款</div>";
 	    }
 
 	  	break;

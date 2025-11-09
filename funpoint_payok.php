@@ -2,6 +2,7 @@
 
 include("myadm/include.php");
 require_once('funpoint_logger.php');
+include_once('./web_class.php');
 
 $MerchantTradeNo = $_POST["MerchantTradeNo"];
 
@@ -113,9 +114,7 @@ if($pagebg = $pagebgpdo->fetch()) {
            $sq2->execute(array($BankCode."-".$vAccount,$ExpireDate, $MerchantTradeNo));
   	}
 	  echo "<div style='font-size:26px;color:white;'>繳費金額：".$sqd["money"]."</div>";
-      echo "<div style='font-size:18px;color:white; margin-top: 15px;'>銀行代碼：<span style='color: #f39c12;'>".$BankCode."</span></div>";
-      echo "<div style='font-size:18px;color:white; margin-top: 10px;'>繳費帳號：<span style='color: #f39c12;'>".$vAccount."</span></div>";
-      if($ExpireDate) echo "<div style='font-size:18px;color:white; margin-top: 10px;'>請在繳費期限 <span style='color: #f39c12;'>".$ExpireDate."</span> 前繳款</div>";
+	  echo web::payment_inf_render(0, $BankCode, $vAccount, $ExpireDate);
   	}
 
   	break;
